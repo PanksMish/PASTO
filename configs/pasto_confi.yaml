@@ -1,0 +1,257 @@
+# PASTO Configuration for OULAD Dataset
+# Paper: Policy-Aware Sequential Trajectory Optimization for Equitable Student Dropout Intervention
+
+experiment:
+  name: "pasto_oulad_full"
+  seed: 42
+  device: "cuda"  # "cuda" or "cpu"
+  num_workers: 4
+  deterministic: true
+
+# Dataset Configuration
+data:
+  dataset_name: "oulad"
+  data_dir: "data/raw/oulad"
+  processed_dir: "data/processed/oulad"
+  
+  # Temporal settings
+  sequence_length: 30  # weeks
+  prediction_horizon: 1
+  stride: 1
+  
+  # Train/Val/Test split
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  
+  # Class imbalance handling
+  use_smote: true
+  smote_k_neighbors: 5
+  sampling_strategy: 0.5
+  
+  # Feature engineering
+  features:
+    - "sum_click"
+    - "avg_score"
+    - "num_of_prev_attempts"
+    - "studied_credits"
+    - "engagement_rate"
+    - "attendance_rate"
+    - "assignment_completion"
+    - "forum_participation"
+    - "resource_access_count"
+    - "assessment_scores"
+  
+  # Normalization
+  normalize: true
+  normalization_method: "standard"  # "standard" or "minmax"
+
+# Model Architecture
+model:
+  # Trajectory Encoder
+  encoder:
+    type: "lstm"  # "lstm" or "transformer"
+    input_dim: 64  # Will be set automatically based on features
+    hidden_dim: 128
+    num_layers: 2
+    dropout: 0.3
+    bidirectional: true
+    
+  # Transformer-specific (used if encoder.type == "transformer")
+  transformer:
+    d_model: 128
+    nhead: 8
+    num_encoder_layers: 3
+    dim_feedforward: 512
+    dropout: 0.3
+    
+  # Dropout Predictor
+  dropout_predictor:
+    hidden_dims: [256, 128, 64]
+    dropout: 0.2
+    activation: "relu"
+    use_batch_norm: true
+    
+  # Trajectory Outcome Predictor
+  trajectory_predictor:
+    hidden_dims: [256, 128]
+    dropout: 0.2
+    activation: "relu"
+    output_dim: 1
+    
+  # State Discretization
+  state_space:
+    num_risk_bins: 4  # Quartiles for risk
+    num_engagement_bins: 4  # Quartiles for engagement
+    num_transient_states: 7
+    dropout_state_id: 24  # Absorbing state
+    total_states: 24  # 4*4 base + 7 transient + 1 dropout
+    
+  # Whittle Index Network
+  whittle_index:
+    hidden_dims: [128, 64, 32]
+    dropout: 0.1
+    activation: "relu"
+    use_layer_norm: true
+    output_activation: "linear"
+
+# Policy Configuration
+policy:
+  # Budget and Cost
+  budget_ratio: 0.1  # Allocate to 10% of students per epoch
+  intervention_cost: 1.0
+  no_intervention_cost: 0.0
+  
+  # Reward Function
+  alpha: 0.7  # Trade-off: retention (0.7) vs trajectory (0.3)
+  gamma: 0.95  # Discount factor for future rewards
+  
+  # Advantage Estimation
+  advantage_method: "td"  # "td" or "gae"
+  gae_lambda: 0.95  # For GAE
+  
+  # Incentive Alignment
+  use_incentive_alignment: true
+  beta1_init: 0.6  # Weight for dropout risk
+  beta2_init: 0.4  # Weight for Whittle index
+  beta_learning_rate: 0.001
+  monotone_constraint: true
+
+# Training Configuration
+training:
+  # Optimization
+  num_epochs: 100
+  batch_size: 256
+  learning_rate: 1e-4
+  weight_decay: 1e-5
+  optimizer: "adamw"
+  scheduler: "cosine"
+  warmup_epochs: 10
+  
+  # Loss Weights
+  lambda_dropout: 0.6  # Weight for dropout prediction loss
+  lambda_trajectory: 0.4  # Weight for trajectory prediction loss
+  
+  # Policy Gradient
+  policy_lr: 1e-4
+  value_lr: 1e-3
+  policy_update_frequency: 1
+  value_update_frequency: 1
+  clip_grad_norm: 1.0
+  
+  # Critic Network
+  critic:
+    hidden_dims: [128, 64]
+    dropout: 0.1
+    learning_rate: 1e-3
+    
+  # Early Stopping
+  early_stopping:
+    patience: 15
+    min_delta: 1e-4
+    monitor: "val_retention"
+    mode: "max"
+    
+  # Checkpointing
+  save_best_only: true
+  save_frequency: 5
+  checkpoint_dir: "checkpoints"
+
+# Evaluation Configuration
+evaluation:
+  # Metrics
+  metrics:
+    - "auc_pr"
+    - "auc_roc"
+    - "recall"
+    - "precision"
+    - "f1"
+    - "f2"
+    - "ks_statistic"
+    - "cumulative_regret"
+    - "retention_rate"
+    - "trajectory_gain"
+    - "ier"  # Intervention Efficiency Ratio
+    - "earg"  # Equity-Adjusted Retention Gain
+    
+  # Equity Analysis
+  equity:
+    protected_attributes:
+      - "imd_band"  # Socio-economic status
+      - "disability"
+      - "age_band"
+      - "gender"
+    
+    protected_groups:
+      imd_band: ["0-10%", "10-20%"]  # Low SES
+      disability: ["Y"]
+      age_band: ["0-35"]
+      
+    fairness_metrics:
+      - "demographic_parity"
+      - "equalized_odds"
+      - "equal_opportunity"
+      
+  # Threshold Tuning
+  threshold_optimization:
+    method: "f2"  # Optimize for F2 score
+    search_range: [0.1, 0.9]
+    num_steps: 100
+    
+  # Cross-validation
+  cross_validation:
+    enabled: true
+    n_folds: 5
+    stratified: true
+
+# Simulation Configuration (for policy evaluation)
+simulation:
+  num_students: 1000
+  num_episodes: 30  # weeks
+  num_runs: 5  # for averaging
+  
+  # Intervention Effects
+  intervention_effect:
+    base_lift: 0.05
+    state_dependent: true
+    effect_range: [0.02, 0.10]
+    noise_std: 0.01
+    
+  # State Transitions
+  transition_model: "learned"  # "learned" or "empirical"
+  add_transition_noise: true
+  transition_noise_std: 0.02
+
+# Logging Configuration
+logging:
+  use_tensorboard: true
+  use_wandb: false
+  log_dir: "logs"
+  log_frequency: 10  # Log every N batches
+  
+  wandb:
+    project: "pasto-dropout-intervention"
+    entity: null
+    tags: ["pasto", "oulad", "rmab"]
+    
+  # What to log
+  log_gradients: false
+  log_weights: false
+  log_images: true
+  log_histograms: true
+
+# Reproducibility
+reproducibility:
+  seed: 42
+  cuda_deterministic: true
+  cuda_benchmark: false
+  num_threads: 4
+
+# Paths
+paths:
+  data_root: "data"
+  output_root: "outputs"
+  checkpoint_root: "checkpoints"
+  log_root: "logs"
+  results_root: "results"
+  figures_root: "figures"

@@ -1,0 +1,49 @@
+# XGBoost Baseline Configuration
+
+experiment:
+  name: "xgboost_baseline_oulad"
+  seed: 42
+
+# Data configuration (same as PASTO)
+data:
+  dataset_name: "oulad"
+  data_dir: "data/raw/oulad"
+  processed_dir: "data/processed/oulad"
+  sequence_length: 30
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  use_smote: true
+  smote_k_neighbors: 5
+  sampling_strategy: 0.5
+  normalize: true
+  normalization_method: "standard"
+
+# XGBoost parameters
+model:
+  max_depth: 6
+  learning_rate: 0.1
+  n_estimators: 100
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 1
+  gamma: 0
+  reg_alpha: 0
+  reg_lambda: 1
+  scale_pos_weight: null  # Auto-computed
+
+# Training
+training:
+  tune_hyperparameters: false
+  cv_folds: 5
+
+# Evaluation
+evaluation:
+  threshold_optimization: true
+  optimization_metric: "f2"
+
+# Output
+output:
+  save_dir: "results/xgboost"
+  save_predictions: true
+  save_feature_importance: true
